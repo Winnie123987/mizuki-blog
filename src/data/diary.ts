@@ -1,5 +1,5 @@
-// 日记数据配置
-// 用于管理日记页面的数据
+import fs from "node:fs";
+import path from "node:path";
 
 export interface DiaryItem {
 	id: number;
@@ -11,16 +11,22 @@ export interface DiaryItem {
 	tags?: string[];
 }
 
-// 示例日记数据
-const diaryData: DiaryItem[] = [
-	{
-		id: 1,
-		content:
-			"The falling speed of cherry blossoms is five centimeters per second!",
-		date: "2025-01-15T10:30:00Z",
-		images: ["/images/diary/sakura.jpg", "/images/diary/1.webp"],
-	},
-];
+// 从 Strapi 同步生成的 JSON 文件加载日记数据
+// 构建时由 sync-from-strapi.js 生成 src/data/diary-data.json
+let diaryData: DiaryItem[] = [];
+
+try {
+	const dataPath = path.join(process.cwd(), "src/data/diary-data.json");
+	if (fs.existsSync(dataPath)) {
+		const raw = fs.readFileSync(dataPath, "utf-8");
+		const parsed = JSON.parse(raw);
+		if (Array.isArray(parsed)) {
+			diaryData = parsed;
+		}
+	}
+} catch (e) {
+	console.warn("[Diary] Failed to load diary-data.json, using empty data");
+}
 
 // 获取日记列表（按时间倒序）
 export const getDiaryList = (limit?: number) => {

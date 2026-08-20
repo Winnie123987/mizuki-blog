@@ -1,0 +1,16 @@
+[
+  {
+    "id": 2,
+    "content": "今天终于把日记功能从Strapi打通了！撒花",
+    "date": "2026-08-20T16:00:00.000Z",
+    "images": [
+      "http://localhost:1337/uploads/large__320daefb38.jpg"
+    ],
+    "location": "北京",
+    "mood": "开心",
+    "tags": [
+      "日常",
+      "技术"
+    ]
+  }
+]

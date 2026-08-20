@@ -15,6 +15,7 @@ loadEnv();
 const STRAPI_URL = process.env.STRAPI_URL || "http://localhost:1337";
 const STRAPI_TOKEN = process.env.STRAPI_TOKEN || "";
 const POSTS_DIR = path.join(rootDir, "src", "content", "posts");
+const DIARY_DATA_PATH = path.join(rootDir, "src", "data", "diary-data.json");
 // ==========================
 
 if (!STRAPI_TOKEN) {
@@ -140,6 +141,85 @@ async function fetchAllPosts() {
 }
 
 /**
+ * 从 Strapi 分页获取所有日记
+ */
+async function fetchAllDiaries() {
+	const allDiaries = [];
+	let page = 1;
+	const pageSize = 50;
+
+	while (true) {
+		const response = await axiosInstance.get("/api/diaries", {
+			params: {
+				"pagination[page]": page,
+				"pagination[pageSize]": pageSize,
+				populate: "*",
+			},
+		});
+
+		const { data, meta } = response.data;
+		allDiaries.push(...data);
+
+		if (meta.pagination.page >= meta.pagination.pageCount) {
+			break;
+		}
+		page++;
+	}
+
+	return allDiaries;
+}
+
+/**
+ * 提取 Strapi 媒体对象的 URL
+ * 优先取大图，没有则取原图
+ */
+function getImageUrl(image) {
+	if (!image) return null;
+	const url =
+		image.formats?.large?.url ||
+		image.formats?.medium?.url ||
+		image.formats?.small?.url ||
+		image.formats?.thumbnail?.url ||
+		image.url;
+	if (!url) return null;
+	return url.startsWith("/") ? STRAPI_URL + url : url;
+}
+
+/**
+ * 将 Strapi 日记数据转换为前端 DiaryItem 格式
+ */
+function transformDiaryData(diaries) {
+	return diaries.map((diary) => {
+		const item = {
+			id: diary.id,
+			content: diary.content || "",
+			date: diary.date || new Date().toISOString(),
+		};
+
+		// 处理图片：把 Strapi 媒体对象转成 URL 数组
+		if (
+			diary.images &&
+			Array.isArray(diary.images) &&
+			diary.images.length > 0
+		) {
+			const urls = diary.images.map(getImageUrl).filter(Boolean);
+			if (urls.length > 0) {
+				item.images = urls;
+			}
+		}
+
+		// 可选的文字字段
+		if (diary.location) item.location = diary.location;
+		if (diary.mood) item.mood = diary.mood;
+		if (Array.isArray(diary.tags) && diary.tags.length > 0) {
+			item.tags = diary.tags;
+		}
+
+		return item;
+	});
+}
+
+/**
  * 主函数
  */
 async function main() {
@@ -184,6 +264,31 @@ async function main() {
 		}
 
 		console.log(`\n✅ 同步完成：${success} 篇文章已写入`);
+
+		// ========== 同步日记 ==========
+		console.log("\n同步日记数据...");
+		try {
+			const diaries = await fetchAllDiaries();
+			console.log(`获取到 ${diaries.length} 条日记`);
+
+			const diaryData = transformDiaryData(diaries);
+
+			// 确保目录存在
+			const diaryDir = path.dirname(DIARY_DATA_PATH);
+			if (!fs.existsSync(diaryDir)) {
+				fs.mkdirSync(diaryDir, { recursive: true });
+			}
+
+			fs.writeFileSync(
+				DIARY_DATA_PATH,
+				JSON.stringify(diaryData, null, 2),
+				"utf-8",
+			);
+			console.log(`✅ 日记同步完成：${diaryData.length} 条已写入`);
+		} catch (error) {
+			console.error("❌ 日记同步失败：", error.message);
+			// 不阻断构建，继续执行
+		}
 	} catch (error) {
 		console.error("\n❌ 同步失败：", error.message);
 		if (error.response) {
